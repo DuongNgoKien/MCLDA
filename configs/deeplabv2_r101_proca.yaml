@@ -1,0 +1,7 @@
+MODEL:
+  NAME: "deeplab_resnet101"
+SOLVER:
+  MULTI_LEVEL: True
+  DELTA: 0.9
+  LAMBDA_FEAT: 1.0
+  LAMBDA_OUT: 1.0
