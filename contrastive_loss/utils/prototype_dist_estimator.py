@@ -8,7 +8,7 @@ class prototype_dist_estimator():
 
         self.cfg = cfg
         self.class_num = cfg.MODEL.NUM_CLASSES
-        self.feature_num = 512
+        self.feature_num = feature_num
         # momentum 
         self.use_momentum = use_momentum
         self.momentum = cfg.MODEL.CONTRAST.MOMENTUM

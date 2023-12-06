@@ -45,7 +45,7 @@ from torch.utils import tensorboard
 from evaluateUDA import evaluate
 
 import time
-import copy 
+import copy
 from contrastive_loss.configs import cfg
 from contrastive_loss.utils.prototype_dist_estimator import prototype_dist_estimator
 from contrastive_loss.utils.loss import PrototypeContrastiveLoss
@@ -70,12 +70,6 @@ def get_arguments():
                         help='Name of the run (default: None)')
     parser.add_argument("--save-images", type=str, default=None,
                         help='Include to save images (default: None)')
-    parser.add_argument("-cfg",
-                        "--config-file",
-                        default="",
-                        metavar="FILE",
-                        help="path to config file",
-                        type=str)
     return parser.parse_args()
 
 
@@ -100,8 +94,8 @@ def adjust_learning_rate(optimizer, i_iter):
 
 def create_ema_model(model):
     #ema_model = getattr(models, config['arch']['type'])(self.train_loader.dataset.num_classes, **config['arch']['args']).to(self.device)
-    #ema_model = SegFormer(type_model= "B3", num_classes= 19)
-    ema_model = Res_Deeplab(num_classes=num_classes)
+    ema_model = SegFormer(type_model= "B3", num_classes= 19)
+    #ema_model = Res_Deeplab(num_classes=num_classes)
 
     for param in ema_model.parameters():
         param.detach_()
@@ -177,11 +171,11 @@ def save_image(image, epoch, id, palette):
 
             image = restore_transform(image)
             #image = PIL.Image.fromarray(np.array(image)[:, :, ::-1])  # BGR->RGB
-            image.save(os.path.join('/home/s/kiendn/CutMix/visualiseImagesI/', str(epoch)+ id + '.png'))
+            image.save(os.path.join('/home/s/kiendn/RMixImgs/visualiseImagesI/', str(epoch)+ id + '.png'))
         else:
             mask = image.numpy()
             colorized_mask = colorize_mask(mask, palette)
-            colorized_mask.save(os.path.join('/home/s/kiendn/CutMix/visualiseImagesL/', str(epoch)+ id + '.png'))
+            colorized_mask.save(os.path.join('/home/s/kiendn/RMixImgs/visualiseImagesL/', str(epoch)+ id + '.png'))
 
 def _save_checkpoint(iteration, model, optimizer, config, ema_model, save_best=False, overwrite=True):
     checkpoint = {
@@ -239,7 +233,7 @@ def main():
     print(config)
 
     best_mIoU = 0
-    feature_num = 512
+    feature_num = 768
     #valid_alpha = 0.2
 
     if consistency_loss == 'MSE':
@@ -254,25 +248,30 @@ def main():
             unlabeled_loss = CrossEntropyLoss2dPixelWiseWeighted(ignore_index=ignore_label).cuda()
 
     cudnn.enabled = True
-
+    
     #create network
-    model = Res_Deeplab(num_classes=num_classes)
+    #model = Res_Deeplab(num_classes=num_classes)
 
     # load pretrained parameters
     #saved_state_dict = torch.load(args.restore_from)
         # load pretrained parameters
-    if restore_from[:4] == 'http' :
-        saved_state_dict = model_zoo.load_url(restore_from)
-    else:
-        saved_state_dict = torch.load(restore_from)
+    #if restore_from[:4] == 'http' :
+    #    saved_state_dict = model_zoo.load_url(restore_from)
+    #else:
+    #    saved_state_dict = torch.load(restore_from)
 
     # Copy loaded parameters to model
-    new_params = model.state_dict().copy()
-    for name, param in new_params.items():
-        if name in saved_state_dict and param.size() == saved_state_dict[name].size():
-            new_params[name].copy_(saved_state_dict[name])
-    model.load_state_dict(new_params)
-
+    #new_params = model.state_dict().copy()
+    #for name, param in new_params.items():
+    #    if name in saved_state_dict and param.size() == saved_state_dict[name].size():
+    #        new_params[name].copy_(saved_state_dict[name])
+    #model.load_state_dict(new_params)
+    
+    LayersPredName = ["head.weight", "head.bias"]
+    model = SegFormer(type_model = "B3", num_classes = 19)
+    weights_loaded = (torch.load("/home/s/hieunt/DACS/mit_b3.pth"))
+    model.load_state_dict({"backbone." + k: v for k, v in weights_loaded.items() if k not in LayersPredName}, strict = False)
+    
     # init ema-model
     if train_unlabeled:
         ema_model = create_ema_model(model)
@@ -329,21 +328,21 @@ def main():
 
     #New loader for Domain transfer
     if True:
-        data_loader = get_loader('synthia')
-        data_path = get_data_path('synthia')
+        data_loader = get_loader('gta')
+        data_path = get_data_path('gta')
         if random_crop:
             data_aug = Compose([RandomCrop_gta(input_size)])
         else:
             data_aug = None
 
         #data_aug = Compose([RandomHorizontallyFlip()])
-        train_dataset = data_loader(data_path, augmentations=data_aug, img_size=(1280,760), mean=IMG_MEAN)
+        train_dataset = data_loader(data_path, augmentations=data_aug, img_size=(1280,720), mean=IMG_MEAN)
 
     trainloader = data.DataLoader(train_dataset,
                     batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
 
     trainloader_iter = iter(trainloader)
-    print('synthia size:',len(trainloader))
+    print('gta size:',len(trainloader))
 
     #Load new data for domain_transfer
 
@@ -390,8 +389,8 @@ def main():
         json.dump(config, handle, indent=4, sort_keys=True)
 
     epochs_since_start = 0
-    rcs_classes, rcs_classprob = get_rcs_class_probs(
-                'data/sync', 0.2)
+    #rcs_classes, rcs_classprob = get_rcs_class_probs(
+    #            'data/sync', 0.2)
     for i_iter in range(start_iteration, num_iterations):
         model.train()
 
@@ -405,15 +404,17 @@ def main():
             adjust_learning_rate(optimizer, i_iter)
 
         if i_iter == 3000:
+            print('start computing prototypes')
+            print(cfg.MODEL.NUM_CLASSES)
             feat_estimator = prototype_dist_estimator(feature_num=feature_num, use_momentum = False, cfg=cfg)
             if cfg.SOLVER.MULTI_LEVEL:
                 out_estimator = prototype_dist_estimator(feature_num=cfg.MODEL.NUM_CLASSES, use_momentum = False, cfg=cfg)
             pcl_criterion = PrototypeContrastiveLoss(cfg)
             
-            data_loader = get_loader('synthia')
-            data_path = get_data_path('synthia')
+            data_loader = get_loader('gta')
+            data_path = get_data_path('gta')
             data_aug = None
-            source_train_dataset = data_loader(data_path, augmentations=data_aug, img_size=(1280,760), mean=IMG_MEAN, load_full=True)
+            source_train_dataset = data_loader(data_path, augmentations=data_aug, img_size=(1280,720), mean=IMG_MEAN)#, load_full=True)
 
             source_trainloader = data.DataLoader(source_train_dataset,
                     batch_size=1, shuffle=True, num_workers=num_workers, pin_memory=True)
@@ -432,11 +433,10 @@ def main():
 
                 # feature level
                 src_feat_in = src_feat_in.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, N)
-                src_out_in = src_out_in.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, 16)
+                src_out_in = src_out_in.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, 19)
                 feat_estimator.update(features=src_feat_in.detach().clone(), labels=src_mask_in)
                 out_estimator.update(features=src_out_in.detach().clone(), labels=src_mask_in)
                 iteration = iteration + 1
-                
                 if iteration % 3000 == 0:
                     print('iteration: ', iteration)
             
@@ -484,7 +484,7 @@ def main():
             #inputs_u_w = inputs_u_w.clone()
             logits_u_w1 = ema_model(inputs_u_w)[1]
             tgt_out_maxvalue, tgt_mask = torch.max(torch.softmax(logits_u_w1, dim=1), dim=1)
-            for i in range(16):
+            for i in range(19):
                 tgt_mask[(tgt_out_maxvalue < cfg.SOLVER.DELTA) * (tgt_mask == i)] = 255
             logits_u_w = interp(logits_u_w1)
             logits_u_w, _ = weakTransform(getWeakInverseTransformParameters(weak_parameters), data = logits_u_w.detach())
@@ -492,10 +492,11 @@ def main():
             max_probs, targets_u_w = torch.max(pseudo_label, dim=1)
             
             for image_i in range(batch_size):
-                if np.random.rand()<0.5:
-                    mix_mask = "region"
-                else:
-                    mix_mask = "class"
+                #if np.random.rand()<0.5:
+                #    mix_mask = "region"
+                #else:
+                #    mix_mask = "class"
+                mix_mask = "class"
                 if mix_mask == "region":
                     if image_i == 0:
                         MixMask0, smask0 = transformsgpu.cutmix(labels[image_i], s_class[image_i])
@@ -506,12 +507,13 @@ def main():
                         MixMask1 = MixMask1.unsqueeze(0).cuda()
                         smask1 = (torch.from_numpy(smask1)).unsqueeze(0).long().cuda()
                 if mix_mask == "class":
+                    """
                     r_classes = []
                     r_prob = []
                     classes = torch.unique(labels[image_i])
                     classes=classes[classes!=ignore_label]
                     nclasses = classes.shape[0]
-                    for m in range(16):
+                    for m in range(19):
                         if rcs_classes[m] in classes:
                             r_classes.append(rcs_classes[m])
                             r_prob.append(rcs_classprob[m])
@@ -530,7 +532,20 @@ def main():
                     else:
                         MixMask1 = transformmasks.generate_class_mask(labels[image_i], classes).unsqueeze(0).cuda()
                         smask1 = F.interpolate(MixMask1.unsqueeze(0).float(), size = (65,65), mode = 'nearest').squeeze(0).long()
-                
+                    """
+                    for image_i in range(batch_size):
+                        classes = torch.unique(labels[image_i])
+                        #classes=classes[classes!=ignore_label]
+                        nclasses = classes.shape[0]
+                        #if nclasses > 0:
+                        classes = (classes[torch.Tensor(np.random.choice(nclasses, int((nclasses+nclasses%2)/2),replace=False)).long()]).cuda()
+
+                        if image_i == 0:
+                            MixMask0 = transformmasks.generate_class_mask(labels[image_i], classes).unsqueeze(0).cuda()
+                            smask0 = F.interpolate(MixMask0.unsqueeze(0).float(), size = (128,128), mode = 'nearest').squeeze(0).long()
+                        else:
+                            MixMask1 = transformmasks.generate_class_mask(labels[image_i], classes).unsqueeze(0).cuda()
+                            smask1 = F.interpolate(MixMask1.unsqueeze(0).float(), size = (128,128), mode = 'nearest').squeeze(0).long()
             strong_parameters = {"Mix": MixMask0}
             if random_flip:
                 strong_parameters["flip"] = random.randint(0, 1)
@@ -585,7 +600,7 @@ def main():
         else:
             loss = L_l
         
-            #print(feat_estimator.use_momentum)
+        #print(feat_estimator.use_momentum)
         if i_iter >= 3000:
             src_feat_ema, src_out_ema = ema_model(images)
             tgt_feat_ema, tgt_out_ema= ema_model(images_remain)
@@ -619,28 +634,27 @@ def main():
             feat_estimator.update(features=tgt_feat_ema.detach(), labels=tgt_mask)
             del src_feat_ema, tgt_feat_ema
 
-            #tgt_feat, tgt_out = model(images_remain)
+            tgt_feat, tgt_out = model(images_remain)
             src_feat = src_feat.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, A)
             feat_u_s = feat_u_s.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, A)
-            #tgt_feat = tgt_feat.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, A)
+            tgt_feat = tgt_feat.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, A)
             #mix_weight = mix_weight.contiguous().view(B*Hs*Ws)
-
 
             loss_feat = pcl_criterion(Proto=feat_estimator.Proto.detach(),
                                   feat=src_feat,
                                   labels=src_mask) \
                         + pcl_criterion(Proto=feat_estimator.Proto.detach(),
                                   feat=feat_u_s,
-                                  labels=mixMask) 
-                        #+ pcl_criterion(Proto=feat_estimator.Proto.detach(),
-                        #          feat=tgt_feat,
-                        #          labels=tgt_mask) 
+                                  labels=mixMask) \
+                        + pcl_criterion(Proto=feat_estimator.Proto.detach(),
+                                  feat=tgt_feat,
+                                  labels=tgt_mask) 
                         
             loss = loss + loss_feat
             loss_cs = loss_feat
             if cfg.SOLVER.MULTI_LEVEL:
                 src_out = s_src_pred.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, cfg.MODEL.NUM_CLASSES)
-                #tgt_out = tgt_out.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, cfg.MODEL.NUM_CLASSES)
+                tgt_out = tgt_out.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, cfg.MODEL.NUM_CLASSES)
                 logits_u_s_mix = logits_u_s_mix.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, cfg.MODEL.NUM_CLASSES)
                 src_out_ema = src_out_ema.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, cfg.MODEL.NUM_CLASSES)
                 tgt_out_ema = tgt_out_ema.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, cfg.MODEL.NUM_CLASSES)
@@ -654,10 +668,10 @@ def main():
                                      labels=src_mask) \
                         + pcl_criterion(Proto=out_estimator.Proto.detach(),
                                        feat=logits_u_s_mix,
-                                       labels=mixMask) 
-                        #+ pcl_criterion(Proto=out_estimator.Proto.detach(),
-                        #               feat=tgt_out,
-                        #               labels=tgt_mask) 
+                                       labels=mixMask) \
+                        + pcl_criterion(Proto=out_estimator.Proto.detach(),
+                                       feat=tgt_out,
+                                       labels=tgt_mask) 
                 loss_cs = loss_cs + loss_out
            
         if len(gpus) > 1:
@@ -681,7 +695,6 @@ def main():
         if ema_model is not None:
             alpha_teacher = 0.99
             ema_model = update_ema_variables(ema_model = ema_model, model = model, alpha_teacher=alpha_teacher, iteration=i_iter)
-
 
         if i_iter % save_checkpoint_every == 0 and i_iter!=0:
             if epochs_since_start * len(trainloader) < save_checkpoint_every:
@@ -727,7 +740,7 @@ def main():
                 tensorboard_writer.add_scalar('Validation/mIoU', mIoU, i_iter)
                 tensorboard_writer.add_scalar('Validation/Loss', eval_loss, i_iter)
         
-        if train_unlabeled and i_iter % 800 == 0:
+        if train_unlabeled and i_iter % 50000 == 0:
             # Saves two mixed images and the corresponding prediction
             save_image(inputs_u_s[0].cpu(),i_iter,'input1',palette.CityScpates_palette)
             save_image(inputs_u_s[1].cpu(),i_iter,'input2',palette.CityScpates_palette)
@@ -772,7 +785,7 @@ if __name__ == '__main__':
     if config['pretrained'] == 'coco':
         restore_from = 'http://vllab1.ucmerced.edu/~whung/adv-semi-seg/resnet101COCO-41f33a49.pth'
 
-    num_classes=16
+    num_classes=19
     IMG_MEAN = np.array((104.00698793, 116.66876762, 122.67891434), dtype=np.float32)
 
     batch_size = config['training']['batch_size']
@@ -829,8 +842,5 @@ if __name__ == '__main__':
         save_unlabeled_images = False
 
     gpus = (0,1,2,3)[:args.gpus]
-    cfg.merge_from_file(args.config_file)
-    #cfg.merge_from_list(args.opts)
-    cfg.freeze()
 
     main()

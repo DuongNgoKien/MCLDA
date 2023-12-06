@@ -241,9 +241,9 @@ class SegFormer(nn.Module):
         self.decode_head = SegFormerHead(self.mit_settings[type_model][0], 256 if type_model in ["B0", "B1"] else 768 , num_classes)
 
     def forward(self, x: Tensor) -> Tensor:
-        y = self.backbone(x)
-        fy, y = self.decode_head(y)
-        return fy, y
+        x = self.backbone(x)
+        seg_feat, seg = self.decode_head(x)
+        return seg_feat, seg
     
     def optim_parameters(self, args):
         return [
