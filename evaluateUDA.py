@@ -18,7 +18,6 @@ from model.deeplabv2 import Res_Deeplab
 from data import get_data_path, get_loader
 import torchvision.transforms as transform
 
-
 from PIL import Image
 import scipy.misc
 from utils.loss import CrossEntropy2d
@@ -116,8 +115,9 @@ def get_iou(data_list, class_num, dataset, save_path=None):
     classes = np.array(("road", "sidewalk",
         "building", "wall", "fence", "pole",
         "traffic_light", "traffic_sign", "vegetation",
-        "sky", "person", "rider",
-        "car", "bus", "motorcycle", "bicycle"))
+        "terrain", "sky", "person", "rider",
+        "car", "truck", "bus",
+        "train", "motorcycle", "bicycle"))
 
 
     for i, iou in enumerate(j_list):
@@ -128,13 +128,13 @@ def get_iou(data_list, class_num, dataset, save_path=None):
         with open(save_path, 'a') as f:
             for i, iou in enumerate(j_list):
                 f.write('class {:2d} {:12} IU {:.2f}'.format(i, classes[i], 100*j_list[i]) + '\n')
-            f.write('meanIOU: ' + str(aveJ) + '\n\n\n\n')
+            f.write('meanIOU: ' + str(aveJ) + '\n\n\n')
     return aveJ
 
 def evaluate(model, dataset, ignore_label=250, save_output_images=False, save_dir=None, input_size=(512,1024)):
 
     if dataset == 'cityscapes':
-        num_classes = 16
+        num_classes = 19
         data_loader = get_loader('cityscapes')
         data_path = get_data_path('cityscapes')
         test_dataset = data_loader( data_path, img_size=input_size, img_mean = IMG_MEAN, is_transform=True, split='val')
@@ -159,7 +159,7 @@ def evaluate(model, dataset, ignore_label=250, save_output_images=False, save_di
     total_loss = []
 
     for index, batch in enumerate(testloader):
-        image, label, size, _, _ = batch
+        image, label, size, name, _ = batch
         size = size[0]
         #if index > 500:
         #    break
@@ -175,12 +175,12 @@ def evaluate(model, dataset, ignore_label=250, save_output_images=False, save_di
             output = output.cpu().data[0].numpy()
 
             if dataset == 'cityscapes':
-                gt = np.asarray(label[0].numpy(), dtype=np.int32)
+                gt = np.asarray(label[0].numpy(), dtype=np.int)
             elif dataset == 'gta':
-                gt = np.asarray(label[0].numpy(), dtype=np.int32)
+                gt = np.asarray(label[0].numpy(), dtype=np.int)
 
             output = output.transpose(1,2,0)
-            output = np.asarray(np.argmax(output, axis=2), dtype=np.int32)
+            output = np.asarray(np.argmax(output, axis=2), dtype=np.int)
 
             data_list.append([gt.flatten(), output.flatten()])
 
@@ -227,7 +227,7 @@ if __name__ == '__main__':
     dataset = config['dataset']
     #dataset = 'cityscapes'
     if dataset == 'cityscapes':
-        num_classes = 16
+        num_classes = 19
         input_size = (512,1024)
     if dataset == 'gta':
         num_classes = 19

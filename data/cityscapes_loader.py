@@ -41,7 +41,7 @@ class cityscapesLoader(data.Dataset):
         [119, 11, 32],
     ]
 
-    label_colours = dict(zip(range(16), colors))
+    label_colours = dict(zip(range(19), colors))
 
     mean_rgb = {"cityscapes": [73.15835921, 82.90891754, 72.39239876],}
 
@@ -70,7 +70,7 @@ class cityscapesLoader(data.Dataset):
         self.is_transform = is_transform
         self.augmentations = augmentations
         self.img_norm = img_norm
-        self.n_classes = 16
+        self.n_classes = 19
         self.img_size = (
             img_size if isinstance(img_size, tuple) else (img_size, img_size)
         )
@@ -84,8 +84,8 @@ class cityscapesLoader(data.Dataset):
 
         self.files[split] = recursive_glob(rootdir=self.images_base, suffix=".png")
 
-        self.void_classes = [0, 1, 2, 3, 4, 5, 6, 9, 10, 14, 15, 16, 18, 22, 27, 29, 30, 31, -1]
-        self.valid_classes = [7, 8, 11, 12, 13, 17, 19, 20, 21, 23, 24, 25, 26, 28, 32, 33]
+        self.void_classes = [0, 1, 2, 3, 4, 5, 6, 9, 10, 14, 15, 16, 18, 29, 30, -1]
+        self.valid_classes = [7, 8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33,]
         self.class_names = [
             "unlabelled",
             "road",
@@ -107,7 +107,7 @@ class cityscapesLoader(data.Dataset):
         ]
 
         self.ignore_index = 250
-        self.class_map = dict(zip(self.valid_classes, range(16)))
+        self.class_map = dict(zip(self.valid_classes, range(19)))
 
         if not self.files[split]:
             raise Exception(

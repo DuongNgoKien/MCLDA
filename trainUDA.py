@@ -403,7 +403,7 @@ def main():
         if lr_schedule:
             adjust_learning_rate(optimizer, i_iter)
 
-        if i_iter == 3000:
+        if i_iter == 300000:
             print('start computing prototypes')
             print(cfg.MODEL.NUM_CLASSES)
             feat_estimator = prototype_dist_estimator(feature_num=feature_num, use_momentum = False, cfg=cfg)
@@ -420,7 +420,7 @@ def main():
                     batch_size=1, shuffle=True, num_workers=num_workers, pin_memory=True)
 
             iteration = 0
-            for i, (src_input_in, src_label_in) in enumerate(source_trainloader):
+            for i, (src_input_in, src_label_in, _, _) in enumerate(source_trainloader):
                 src_input_in = src_input_in.cuda(non_blocking=True)
                 src_label_in = src_label_in.cuda(non_blocking=True).long()
 
@@ -437,7 +437,7 @@ def main():
                 feat_estimator.update(features=src_feat_in.detach().clone(), labels=src_mask_in)
                 out_estimator.update(features=src_out_in.detach().clone(), labels=src_mask_in)
                 iteration = iteration + 1
-                if iteration % 3000 == 0:
+                if iteration % 300000 == 0:
                     print('iteration: ', iteration)
             
             feat_estimator.use_momentum = True
@@ -601,7 +601,7 @@ def main():
             loss = L_l
         
         #print(feat_estimator.use_momentum)
-        if i_iter >= 3000:
+        if i_iter >= 300000:
             src_feat_ema, src_out_ema = ema_model(images)
             tgt_feat_ema, tgt_out_ema= ema_model(images_remain)
             B, A, Hs, Ws = src_feat_ema.size()
@@ -685,7 +685,7 @@ def main():
             loss_l_value += L_l.item() 
             if train_unlabeled:
                 loss_u_value += L_u.item()
-            if i_iter >= 3000:
+            if i_iter >= 300000:
                 loss_cs_value = loss_cs.item()
 
         loss.backward()
@@ -709,13 +709,13 @@ def main():
             accumulated_loss_l.append(loss_l_value)
             if train_unlabeled:
                 accumulated_loss_u.append(loss_u_value)
-            if i_iter >= 3000:
+            if i_iter >= 300000:
                 accumulated_loss_cs.append(loss_cs_value)
             if i_iter % log_per_iter == 0 and i_iter != 0:
                 tensorboard_writer.add_scalar('Training/Supervised loss', np.mean(accumulated_loss_l), i_iter)
                 if train_unlabeled:
                     tensorboard_writer.add_scalar('Training/Unsupervised loss', np.mean(accumulated_loss_u), i_iter)
-                if i_iter >= 3000:
+                if i_iter >= 300000:
                     tensorboard_writer.add_scalar('Training/Contrastive loss', np.mean(accumulated_loss_cs), i_iter)
                     print('Supervised loss', np.mean(accumulated_loss_l), 'Unsupervised loss', np.mean(accumulated_loss_u), 'Contrastive loss', np.mean(accumulated_loss_cs), i_iter)
                 else:
