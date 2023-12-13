@@ -234,7 +234,6 @@ def main():
 
     best_mIoU = 0
     feature_num = 768
-    #valid_alpha = 0.2
 
     if consistency_loss == 'MSE':
         if len(gpus) > 1:
@@ -389,8 +388,8 @@ def main():
         json.dump(config, handle, indent=4, sort_keys=True)
 
     epochs_since_start = 0
-    #rcs_classes, rcs_classprob = get_rcs_class_probs(
-    #            'data/sync', 0.2)
+    rcs_classes, rcs_classprob = get_rcs_class_probs(
+                'data/sync', 0.2)
     for i_iter in range(start_iteration, num_iterations):
         model.train()
 
@@ -403,9 +402,8 @@ def main():
         if lr_schedule:
             adjust_learning_rate(optimizer, i_iter)
 
-        if i_iter == 300000:
+        if i_iter == 3000:
             print('start computing prototypes')
-            print(cfg.MODEL.NUM_CLASSES)
             feat_estimator = prototype_dist_estimator(feature_num=feature_num, use_momentum = False, cfg=cfg)
             if cfg.SOLVER.MULTI_LEVEL:
                 out_estimator = prototype_dist_estimator(feature_num=cfg.MODEL.NUM_CLASSES, use_momentum = False, cfg=cfg)
@@ -414,13 +412,13 @@ def main():
             data_loader = get_loader('gta')
             data_path = get_data_path('gta')
             data_aug = None
-            source_train_dataset = data_loader(data_path, augmentations=data_aug, img_size=(1280,720), mean=IMG_MEAN)#, load_full=True)
+            source_train_dataset = data_loader(data_path, augmentations=data_aug, img_size=(1280,720), mean=IMG_MEAN, load_full=True)
 
             source_trainloader = data.DataLoader(source_train_dataset,
                     batch_size=1, shuffle=True, num_workers=num_workers, pin_memory=True)
 
             iteration = 0
-            for i, (src_input_in, src_label_in, _, _) in enumerate(source_trainloader):
+            for i, (src_input_in, src_label_in) in enumerate(source_trainloader):
                 src_input_in = src_input_in.cuda(non_blocking=True)
                 src_label_in = src_label_in.cuda(non_blocking=True).long()
 
@@ -437,7 +435,7 @@ def main():
                 feat_estimator.update(features=src_feat_in.detach().clone(), labels=src_mask_in)
                 out_estimator.update(features=src_out_in.detach().clone(), labels=src_mask_in)
                 iteration = iteration + 1
-                if iteration % 300000 == 0:
+                if iteration % 3000 == 0:
                     print('iteration: ', iteration)
             
             feat_estimator.use_momentum = True
@@ -492,11 +490,10 @@ def main():
             max_probs, targets_u_w = torch.max(pseudo_label, dim=1)
             
             for image_i in range(batch_size):
-                #if np.random.rand()<0.5:
-                #    mix_mask = "region"
-                #else:
-                #    mix_mask = "class"
-                mix_mask = "class"
+                if np.random.rand()<0.5:
+                    mix_mask = "region"
+                else:
+                    mix_mask = "class"
                 if mix_mask == "region":
                     if image_i == 0:
                         MixMask0, smask0 = transformsgpu.cutmix(labels[image_i], s_class[image_i])
@@ -507,7 +504,6 @@ def main():
                         MixMask1 = MixMask1.unsqueeze(0).cuda()
                         smask1 = (torch.from_numpy(smask1)).unsqueeze(0).long().cuda()
                 if mix_mask == "class":
-                    """
                     r_classes = []
                     r_prob = []
                     classes = torch.unique(labels[image_i])
@@ -520,32 +516,12 @@ def main():
                     r_prob = np.array(r_prob)
                     r_prob = r_prob/r_prob.sum(0)
                     classes = (torch.Tensor(np.random.choice(r_classes, size = int((nclasses+nclasses%2)/2), p=r_prob, replace=False)).long()).cuda()
-                    if (17 in classes or 18 in classes) and 12 not in classes and 12 in r_classes:
-                        classes = torch.cat((classes, torch.Tensor([12]).long().cuda()), dim=0)
-                    if 12 in classes and 18 not in classes and 18 in r_classes:
-                        classes = torch.cat((classes, torch.Tensor([18]).long().cuda()), dim=0)
-                    if 12 in classes and 17 not in classes and 17 in r_classes:
-                        classes = torch.cat((classes, torch.Tensor([17]).long().cuda()), dim=0)
                     if image_i == 0:
                         MixMask0 = transformmasks.generate_class_mask(labels[image_i], classes).unsqueeze(0).cuda()
-                        smask0 = F.interpolate(MixMask0.unsqueeze(0).float(), size = (65,65), mode = 'nearest').squeeze(0).long()
+                        smask0 = F.interpolate(MixMask0.unsqueeze(0).float(), size = (128,128), mode = 'nearest').squeeze(0).long()
                     else:
                         MixMask1 = transformmasks.generate_class_mask(labels[image_i], classes).unsqueeze(0).cuda()
-                        smask1 = F.interpolate(MixMask1.unsqueeze(0).float(), size = (65,65), mode = 'nearest').squeeze(0).long()
-                    """
-                    for image_i in range(batch_size):
-                        classes = torch.unique(labels[image_i])
-                        #classes=classes[classes!=ignore_label]
-                        nclasses = classes.shape[0]
-                        #if nclasses > 0:
-                        classes = (classes[torch.Tensor(np.random.choice(nclasses, int((nclasses+nclasses%2)/2),replace=False)).long()]).cuda()
-
-                        if image_i == 0:
-                            MixMask0 = transformmasks.generate_class_mask(labels[image_i], classes).unsqueeze(0).cuda()
-                            smask0 = F.interpolate(MixMask0.unsqueeze(0).float(), size = (128,128), mode = 'nearest').squeeze(0).long()
-                        else:
-                            MixMask1 = transformmasks.generate_class_mask(labels[image_i], classes).unsqueeze(0).cuda()
-                            smask1 = F.interpolate(MixMask1.unsqueeze(0).float(), size = (128,128), mode = 'nearest').squeeze(0).long()
+                        smask1 = F.interpolate(MixMask1.unsqueeze(0).float(), size = (128,128), mode = 'nearest').squeeze(0).long()
             strong_parameters = {"Mix": MixMask0}
             if random_flip:
                 strong_parameters["flip"] = random.randint(0, 1)
@@ -600,8 +576,7 @@ def main():
         else:
             loss = L_l
         
-        #print(feat_estimator.use_momentum)
-        if i_iter >= 300000:
+        if i_iter >= 3000:
             src_feat_ema, src_out_ema = ema_model(images)
             tgt_feat_ema, tgt_out_ema= ema_model(images_remain)
             B, A, Hs, Ws = src_feat_ema.size()
@@ -649,8 +624,6 @@ def main():
                         + pcl_criterion(Proto=feat_estimator.Proto.detach(),
                                   feat=tgt_feat,
                                   labels=tgt_mask) 
-                        
-            loss = loss + loss_feat
             loss_cs = loss_feat
             if cfg.SOLVER.MULTI_LEVEL:
                 src_out = s_src_pred.permute(0, 2, 3, 1).contiguous().view(B * Hs * Ws, cfg.MODEL.NUM_CLASSES)
@@ -673,20 +646,20 @@ def main():
                                        feat=tgt_out,
                                        labels=tgt_mask) 
                 loss_cs = loss_cs + loss_out
-           
+            loss = loss + loss_cs
         if len(gpus) > 1:
             #print('before mean = ',loss)
             loss = loss.mean()
             #print('after mean = ',loss)
             loss_l_value += L_l.mean().item()
             if train_unlabeled:
-                loss_u_value += L_u.mean().item()
+                loss__u_value += L_u.mean().item()
         else:
             loss_l_value += L_l.item() 
             if train_unlabeled:
                 loss_u_value += L_u.item()
-            if i_iter >= 300000:
-                loss_cs_value = loss_cs.item()
+            if i_iter >= 3000:
+                loss_cs_value += loss_cs.item()
 
         loss.backward()
         optimizer.step()
@@ -709,13 +682,13 @@ def main():
             accumulated_loss_l.append(loss_l_value)
             if train_unlabeled:
                 accumulated_loss_u.append(loss_u_value)
-            if i_iter >= 300000:
+            if i_iter >= 3000:
                 accumulated_loss_cs.append(loss_cs_value)
             if i_iter % log_per_iter == 0 and i_iter != 0:
                 tensorboard_writer.add_scalar('Training/Supervised loss', np.mean(accumulated_loss_l), i_iter)
                 if train_unlabeled:
                     tensorboard_writer.add_scalar('Training/Unsupervised loss', np.mean(accumulated_loss_u), i_iter)
-                if i_iter >= 300000:
+                if i_iter >= 3000:
                     tensorboard_writer.add_scalar('Training/Contrastive loss', np.mean(accumulated_loss_cs), i_iter)
                     print('Supervised loss', np.mean(accumulated_loss_l), 'Unsupervised loss', np.mean(accumulated_loss_u), 'Contrastive loss', np.mean(accumulated_loss_cs), i_iter)
                 else:
@@ -725,7 +698,6 @@ def main():
                 accumulated_loss_cs = []
 
         if i_iter % val_per_iter == 0 and i_iter != 0:
-            #valid_alpha = adjust_valid_alpha(i_iter)
             model.eval()
             if dataset == 'cityscapes':
                 mIoU, eval_loss = evaluate(model, dataset, ignore_label=250, input_size=(512,1024), save_dir=checkpoint_dir)

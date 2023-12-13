@@ -95,16 +95,16 @@ def get_rand_bbox(size, lam):
     cut_side_ratio = np.sqrt(cut_rat)
     cut_w = np.int(W * cut_side_ratio)
     cut_h = np.int(H * cut_side_ratio)
-    cut_h = (cut_h // 8) * 8
-    cut_w = (cut_w // 8) * 8
-    if cut_w < 8: cut_w += 8
-    if cut_h < 8: cut_h += 8
-    cx = np.random.randint(W // 8 - cut_w // 8)
-    cy = np.random.randint(W // 8 - cut_h // 8)
-    bbx1 = cx * 8
-    bby1 = cy * 8
-    bbx2 = cx * 8 + cut_w
-    bby2 = cy * 8 + cut_h
+    cut_h = (cut_h // 4) * 4
+    cut_w = (cut_w // 4) * 4
+    if cut_w < 4: cut_w += 4
+    if cut_h < 4: cut_h += 4
+    cx = np.random.randint(W // 4 - cut_w // 4)
+    cy = np.random.randint(W // 4 - cut_h // 4)
+    bbx1 = cx * 4
+    bby1 = cy * 4
+    bbx2 = cx * 4 + cut_w
+    bby2 = cy * 4 + cut_h
     return bbx1, bby1, bbx2, bby2
 
 def cutmix(labels_2, s_class, lam = 0.8):
@@ -120,8 +120,8 @@ def cutmix(labels_2, s_class, lam = 0.8):
     mask = torch.zeros(labels_2.shape)
     # Cut and paste images and labels
     mask[bbx1:bbx2, bby1:bby2] = 1
-    smask = np.zeros((65,65))
-    sbbx1, sbbx2, sbby1, sbby2 = int(bbx1//8), int(bbx2//8), int(bby1//8), int(bby2//8)
+    smask = np.zeros((128,128))
+    sbbx1, sbbx2, sbby1, sbby2 = int(bbx1//4), int(bbx2//4), int(bby1//4), int(bby2//4)
     smask[sbbx1:sbbx2, sbby1:sbby2] = 1
     
     return mask, smask
