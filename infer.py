@@ -69,7 +69,7 @@ def predict(model, img_dir=None, save_dir=None):
     dataset = loader(img_dir, is_transform=True, img_mean=IMG_MEAN)
     testloader = data.DataLoader(dataset, batch_size=1, shuffle=False, pin_memory=True)
     
-    for index, batch in enumerate(testloader):
+    for _, batch in enumerate(testloader):
         image, image_name = batch
         image_name = image_name[0].split("/")[-1]
         with torch.no_grad():
