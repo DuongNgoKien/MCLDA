@@ -94,8 +94,8 @@ def adjust_learning_rate(optimizer, i_iter):
 
 def create_ema_model(model):
     #ema_model = getattr(models, config['arch']['type'])(self.train_loader.dataset.num_classes, **config['arch']['args']).to(self.device)
-    ema_model = SegFormer(type_model= "B3", num_classes= 19)
-    #ema_model = Res_Deeplab(num_classes=num_classes)
+    #ema_model = SegFormer(type_model= "B3", num_classes= 19)
+    ema_model = Res_Deeplab(num_classes=num_classes)
 
     for param in ema_model.parameters():
         param.detach_()
@@ -233,7 +233,7 @@ def main():
     print(config)
 
     best_mIoU = 0
-    feature_num = 768
+    feature_num = 512
 
     if consistency_loss == 'MSE':
         if len(gpus) > 1:
@@ -249,27 +249,27 @@ def main():
     cudnn.enabled = True
     
     #create network
-    #model = Res_Deeplab(num_classes=num_classes)
+    model = Res_Deeplab(num_classes=num_classes)
 
     # load pretrained parameters
     #saved_state_dict = torch.load(args.restore_from)
         # load pretrained parameters
-    #if restore_from[:4] == 'http' :
-    #    saved_state_dict = model_zoo.load_url(restore_from)
-    #else:
-    #    saved_state_dict = torch.load(restore_from)
+    if restore_from[:4] == 'http' :
+        saved_state_dict = model_zoo.load_url(restore_from)
+    else:
+        saved_state_dict = torch.load(restore_from)
 
     # Copy loaded parameters to model
-    #new_params = model.state_dict().copy()
-    #for name, param in new_params.items():
-    #    if name in saved_state_dict and param.size() == saved_state_dict[name].size():
-    #        new_params[name].copy_(saved_state_dict[name])
-    #model.load_state_dict(new_params)
+    new_params = model.state_dict().copy()
+    for name, param in new_params.items():
+        if name in saved_state_dict and param.size() == saved_state_dict[name].size():
+            new_params[name].copy_(saved_state_dict[name])
+    model.load_state_dict(new_params)
     
-    LayersPredName = ["head.weight", "head.bias"]
-    model = SegFormer(type_model = "B3", num_classes = 19)
-    weights_loaded = (torch.load("/home/s/hieunt/DACS/mit_b3.pth"))
-    model.load_state_dict({"backbone." + k: v for k, v in weights_loaded.items() if k not in LayersPredName}, strict = False)
+    #LayersPredName = ["head.weight", "head.bias"]
+    #model = SegFormer(type_model = "B3", num_classes = 19)
+    #weights_loaded = (torch.load("/home/s/hieunt/DACS/mit_b3.pth"))
+    #model.load_state_dict({"backbone." + k: v for k, v in weights_loaded.items() if k not in LayersPredName}, strict = False)
     
     # init ema-model
     if train_unlabeled:
@@ -518,10 +518,10 @@ def main():
                     classes = (torch.Tensor(np.random.choice(r_classes, size = int((nclasses+nclasses%2)/2), p=r_prob, replace=False)).long()).cuda()
                     if image_i == 0:
                         MixMask0 = transformmasks.generate_class_mask(labels[image_i], classes).unsqueeze(0).cuda()
-                        smask0 = F.interpolate(MixMask0.unsqueeze(0).float(), size = (128,128), mode = 'nearest').squeeze(0).long()
+                        smask0 = F.interpolate(MixMask0.unsqueeze(0).float(), size = (65,65), mode = 'nearest').squeeze(0).long()
                     else:
                         MixMask1 = transformmasks.generate_class_mask(labels[image_i], classes).unsqueeze(0).cuda()
-                        smask1 = F.interpolate(MixMask1.unsqueeze(0).float(), size = (128,128), mode = 'nearest').squeeze(0).long()
+                        smask1 = F.interpolate(MixMask1.unsqueeze(0).float(), size = (65,65), mode = 'nearest').squeeze(0).long()
             strong_parameters = {"Mix": MixMask0}
             if random_flip:
                 strong_parameters["flip"] = random.randint(0, 1)
