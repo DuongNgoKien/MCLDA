@@ -13,16 +13,18 @@ import json
 from data.city_utils import get_rcs_class_probs
 
 class GTA5DataSet(data.Dataset):
-    def __init__(self, root, max_iters=None, augmentations = None, img_size=(321, 321), mean=(128, 128, 128), scale=True, mirror=True, ignore_label=250, load_full = None):
+    def __init__(self, root, list_path, max_iters=None, augmentations = None, img_size=(321, 321), mean=(128, 128, 128), scale=True, mirror=True, ignore_label=250, load_full = None):
         self.root = root
         # self.list_path = list_path
         self.img_size = img_size
+        self.list_path = list_path
         self.scale = scale
         self.ignore_label = ignore_label
         self.mean = mean
         self.is_mirror = mirror
         self.augmentations = augmentations
         self.load_full = load_full
+        self.img_ids = [i_id.strip().replace(".png", "") for i_id in open(list_path)]
         # self.mean_bgr = np.array([104.00698793, 116.66876762, 122.67891434])
         # self.img_ids = [i_id.strip() for i_id in open(list_path)]
         if not max_iters==None:
@@ -38,19 +40,13 @@ class GTA5DataSet(data.Dataset):
         self.rcs_min_pixels = 3000
         self.rcs_min_crop_ratio = 0.5
         self.rcs_classes, self.rcs_classprob = get_rcs_class_probs(
-                'data/samples', self.rcs_class_temp)
-        """
-        self.probs_classes = [
-            0., 0., 0., 0.0194, 0.0669, 0.0372, 0.0967, 0.1018, 0.0001, 0.0136, 0., \
-                0.0782, 0.1057, 0.0110, 0.0523, 0.0995, 0.1059, 0.1057, 0.1060
-        ] #For 19 classes selected
-        """
+                'data/gta5_list', self.rcs_class_temp)
         self.file_to_idx = {}
         for img_path in glob(self.root + "/*/images/*.png"):
             mask_path = img_path.replace("images", "labels")
             name = img_path.split("/")[-1].replace(".png", "")
             #Error pictures inside GTA5 dataset
-            if(('/images/15188' not in img_path) and  ('/images/17705' not in img_path)):
+            if(('/images/15188' not in img_path) and  ('/images/17705' not in img_path) and name in self.img_ids):
                 self.files.append(
                     {
                         "img": img_path,
@@ -65,12 +61,7 @@ class GTA5DataSet(data.Dataset):
                 }
             else:
                 print(img_path, mask_path)
-        """
-        with open("/home/s/kiendn/rcs_dacs_prototype/data/samples/class_to_file_paths.json", 'r') as of:
-            self.samples_with_class = json.load(of)
-        """
-        with open(osp.join('data/samples',
-                             'samples_with_class.json'), 'r') as of:
+        with open('data/gta5_list/samples_with_class.json', 'r') as of:
                 samples_with_class_and_n = json.load(of)
         samples_with_class_and_n = {
                 int(k): v

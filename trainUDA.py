@@ -94,8 +94,8 @@ def adjust_learning_rate(optimizer, i_iter):
 
 def create_ema_model(model):
     #ema_model = getattr(models, config['arch']['type'])(self.train_loader.dataset.num_classes, **config['arch']['args']).to(self.device)
-    #ema_model = SegFormer(type_model= "B3", num_classes= 19)
-    ema_model = Res_Deeplab(num_classes=num_classes)
+    ema_model = SegFormer(type_model= "B3", num_classes= 19)
+    #ema_model = Res_Deeplab(num_classes=num_classes)
 
     for param in ema_model.parameters():
         param.detach_()
@@ -233,7 +233,7 @@ def main():
     print(config)
 
     best_mIoU = 0
-    feature_num = 512
+    feature_num = 768
 
     if consistency_loss == 'MSE':
         if len(gpus) > 1:
@@ -249,27 +249,27 @@ def main():
     cudnn.enabled = True
     
     #create network
-    model = Res_Deeplab(num_classes=num_classes)
+    #model = Res_Deeplab(num_classes=num_classes)
 
     # load pretrained parameters
     #saved_state_dict = torch.load(args.restore_from)
         # load pretrained parameters
-    if restore_from[:4] == 'http' :
-        saved_state_dict = model_zoo.load_url(restore_from)
-    else:
-        saved_state_dict = torch.load(restore_from)
+    #if restore_from[:4] == 'http' :
+    #    saved_state_dict = model_zoo.load_url(restore_from)
+    #else:
+    #    saved_state_dict = torch.load(restore_from)
 
     # Copy loaded parameters to model
-    new_params = model.state_dict().copy()
-    for name, param in new_params.items():
-        if name in saved_state_dict and param.size() == saved_state_dict[name].size():
-            new_params[name].copy_(saved_state_dict[name])
-    model.load_state_dict(new_params)
+    #new_params = model.state_dict().copy()
+    #for name, param in new_params.items():
+    #    if name in saved_state_dict and param.size() == saved_state_dict[name].size():
+    #        new_params[name].copy_(saved_state_dict[name])
+    #model.load_state_dict(new_params)
     
-    #LayersPredName = ["head.weight", "head.bias"]
-    #model = SegFormer(type_model = "B3", num_classes = 19)
-    #weights_loaded = (torch.load("/home/s/hieunt/DACS/mit_b3.pth"))
-    #model.load_state_dict({"backbone." + k: v for k, v in weights_loaded.items() if k not in LayersPredName}, strict = False)
+    LayersPredName = ["head.weight", "head.bias"]
+    model = SegFormer(type_model = "B3", num_classes = 19)
+    weights_loaded = (torch.load("/home/s/hieunt/DACS/mit_b3.pth"))
+    model.load_state_dict({"backbone." + k: v for k, v in weights_loaded.items() if k not in LayersPredName}, strict = False)
     
     # init ema-model
     if train_unlabeled:
@@ -335,7 +335,7 @@ def main():
             data_aug = None
 
         #data_aug = Compose([RandomHorizontallyFlip()])
-        train_dataset = data_loader(data_path, augmentations=data_aug, img_size=(1280,720), mean=IMG_MEAN)
+        train_dataset = data_loader(data_path, list_path='data/gta5_list/GTA5-4K.txt', augmentations=data_aug, img_size=(1280,720), mean=IMG_MEAN)
 
     trainloader = data.DataLoader(train_dataset,
                     batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
@@ -389,7 +389,7 @@ def main():
 
     epochs_since_start = 0
     rcs_classes, rcs_classprob = get_rcs_class_probs(
-                'data/sync', 0.2)
+                'data/gta5_list', 0.4)
     for i_iter in range(start_iteration, num_iterations):
         model.train()
 
@@ -401,7 +401,7 @@ def main():
 
         if lr_schedule:
             adjust_learning_rate(optimizer, i_iter)
-
+        """
         if i_iter == 3000:
             print('start computing prototypes')
             feat_estimator = prototype_dist_estimator(feature_num=feature_num, use_momentum = False, cfg=cfg)
@@ -440,6 +440,7 @@ def main():
             
             feat_estimator.use_momentum = True
             out_estimator.use_momentum = True
+        """
         # training loss for labeled data only
         try:
             batch = next(trainloader_iter)
@@ -516,12 +517,22 @@ def main():
                     r_prob = np.array(r_prob)
                     r_prob = r_prob/r_prob.sum(0)
                     classes = (torch.Tensor(np.random.choice(r_classes, size = int((nclasses+nclasses%2)/2), p=r_prob, replace=False)).long()).cuda()
+                    if (17 in classes or 18 in classes) and 12 not in classes:
+                        classes = torch.cat((classes, torch.Tensor([12]).long().cuda()), dim=0)
+                    if 12 in classes and 18 not in classes:
+                        classes = torch.cat((classes, torch.Tensor([18]).long().cuda()), dim=0)
+                    if 12 in classes and 17 not in classes:
+                        classes = torch.cat((classes, torch.Tensor([17]).long().cuda()), dim=0)
+                    if 0 in classes and 1 not in classes:
+                        classes = torch.cat((classes, torch.Tensor([1]).long().cuda()), dim=0)
+                    if 1 in classes and 0 not in classes:
+                        classes = torch.cat((classes, torch.Tensor([0]).long().cuda()), dim=0)
                     if image_i == 0:
                         MixMask0 = transformmasks.generate_class_mask(labels[image_i], classes).unsqueeze(0).cuda()
-                        smask0 = F.interpolate(MixMask0.unsqueeze(0).float(), size = (65,65), mode = 'nearest').squeeze(0).long()
+                        smask0 = F.interpolate(MixMask0.unsqueeze(0).float(), size = (128,128), mode = 'nearest').squeeze(0).long()
                     else:
                         MixMask1 = transformmasks.generate_class_mask(labels[image_i], classes).unsqueeze(0).cuda()
-                        smask1 = F.interpolate(MixMask1.unsqueeze(0).float(), size = (65,65), mode = 'nearest').squeeze(0).long()
+                        smask1 = F.interpolate(MixMask1.unsqueeze(0).float(), size = (128,128), mode = 'nearest').squeeze(0).long()
             strong_parameters = {"Mix": MixMask0}
             if random_flip:
                 strong_parameters["flip"] = random.randint(0, 1)
@@ -564,6 +575,8 @@ def main():
             strong_parameters["Mix"] = MixMask1
             _, pixelWiseWeight1 = strongTransform(strong_parameters, target = torch.cat((onesWeights[1].unsqueeze(0),pixelWiseWeight[1].unsqueeze(0))))
             pixelWiseWeight = torch.cat((pixelWiseWeight0,pixelWiseWeight1)).cuda()
+            pixelWiseWeight[:,-120:,:] = 0
+            pixelWiseWeight[:,:15:,:] = 0
 
             if consistency_loss == 'MSE':
                 unlabeled_weight = torch.sum(max_probs.ge(0.968).long() == 1).item() / np.size(np.array(targets_u.cpu()))
@@ -575,7 +588,7 @@ def main():
             loss = L_l + L_u
         else:
             loss = L_l
-        
+        """
         if i_iter >= 3000:
             src_feat_ema, src_out_ema = ema_model(images)
             tgt_feat_ema, tgt_out_ema= ema_model(images_remain)
@@ -647,6 +660,7 @@ def main():
                                        labels=tgt_mask) 
                 loss_cs = loss_cs + loss_out
             loss = loss + loss_cs
+        """
         if len(gpus) > 1:
             #print('before mean = ',loss)
             loss = loss.mean()
@@ -658,8 +672,8 @@ def main():
             loss_l_value += L_l.item() 
             if train_unlabeled:
                 loss_u_value += L_u.item()
-            if i_iter >= 3000:
-                loss_cs_value += loss_cs.item()
+            #if i_iter >= 3000:
+            #    loss_cs_value += loss_cs.item()
 
         loss.backward()
         optimizer.step()
@@ -682,20 +696,20 @@ def main():
             accumulated_loss_l.append(loss_l_value)
             if train_unlabeled:
                 accumulated_loss_u.append(loss_u_value)
-            if i_iter >= 3000:
-                accumulated_loss_cs.append(loss_cs_value)
+            #if i_iter >= 3000:
+            #    accumulated_loss_cs.append(loss_cs_value)
             if i_iter % log_per_iter == 0 and i_iter != 0:
                 tensorboard_writer.add_scalar('Training/Supervised loss', np.mean(accumulated_loss_l), i_iter)
                 if train_unlabeled:
                     tensorboard_writer.add_scalar('Training/Unsupervised loss', np.mean(accumulated_loss_u), i_iter)
-                if i_iter >= 3000:
-                    tensorboard_writer.add_scalar('Training/Contrastive loss', np.mean(accumulated_loss_cs), i_iter)
-                    print('Supervised loss', np.mean(accumulated_loss_l), 'Unsupervised loss', np.mean(accumulated_loss_u), 'Contrastive loss', np.mean(accumulated_loss_cs), i_iter)
-                else:
-                    print('Supervised loss', np.mean(accumulated_loss_l), 'Unsupervised loss', np.mean(accumulated_loss_u), i_iter)
+                #if i_iter >= 3000:
+                #    tensorboard_writer.add_scalar('Training/Contrastive loss', np.mean(accumulated_loss_cs), i_iter)
+                #    print('Supervised loss', np.mean(accumulated_loss_l), 'Unsupervised loss', np.mean(accumulated_loss_u), 'Contrastive loss', np.mean(accumulated_loss_cs), i_iter)
+                #else:
+                print('Supervised loss', np.mean(accumulated_loss_l), 'Unsupervised loss', np.mean(accumulated_loss_u), i_iter)
                 accumulated_loss_l = []
                 accumulated_loss_u = []
-                accumulated_loss_cs = []
+                #accumulated_loss_cs = []
 
         if i_iter % val_per_iter == 0 and i_iter != 0:
             model.eval()
@@ -712,7 +726,7 @@ def main():
                 tensorboard_writer.add_scalar('Validation/mIoU', mIoU, i_iter)
                 tensorboard_writer.add_scalar('Validation/Loss', eval_loss, i_iter)
         
-        if train_unlabeled and i_iter % 50000 == 0:
+        if train_unlabeled and i_iter % 500 == 0 and i_iter <= 1000:
             # Saves two mixed images and the corresponding prediction
             save_image(inputs_u_s[0].cpu(),i_iter,'input1',palette.CityScpates_palette)
             save_image(inputs_u_s[1].cpu(),i_iter,'input2',palette.CityScpates_palette)

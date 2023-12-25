@@ -83,6 +83,8 @@ def main():
     args = parse_args()
     gta_path = args.gta_path
     out_dir = args.out_dir if args.out_dir else gta_path
+    list_path = "data/gta5_list/GTA5-4K.txt"
+    img_ids = [i_id.strip() for i_id in open(list_path)]
     #os.mkdir(out_dir)
 
     #gt_dir = osp.join(gta_path, args.gt_dir)
@@ -90,8 +92,9 @@ def main():
     poly_files = []
     for mask_path in glob(gta_path + "/*/images/*.png"):
         #Error pictures inside GTA5 dataset
-        mask_path = mask_path.replace("images", "labels")
-        poly_files.append(mask_path)
+        if mask_path.split("/")[-1] in img_ids:
+            mask_path = mask_path.replace("images", "labels")
+            poly_files.append(mask_path)
     poly_files = sorted(poly_files)
     print(len(poly_files))
     
